@@ -1,8 +1,9 @@
 pipeline {
     agent any
-
+    
     environment {
-        DOCKER_HUB_USER = 'YOUR_DOCKER_HUB_USERNAME' // Replace with your Docker Hub username
+        // Change to your actual username in strictly LOWERCASE
+        DOCKER_HUB_USER = 'nusradotnet' 
         IMAGE_NAME      = 'jenkins-cicd-demo'
         BUILD_TAG       = "${BUILD_NUMBER}"
     }
@@ -43,7 +44,7 @@ pipeline {
             }
         }
     }
-
+    
     post {
         always {
             echo 'Pipeline execution complete.'
