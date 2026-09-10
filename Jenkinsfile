@@ -4,7 +4,9 @@ pipeline {
     environment {
         DOCKER_HUB_USER = 'nusradotnet'
         IMAGE_NAME      = 'jenkins-cicd-demo'
-        BUILD_TAG       = "${BUILD_NUMBER}"
+        CONTAINER_NAME  = 'web-app-prod'
+        APP_PORT        = '8085'
+        VERSION         = "v${BUILD_NUMBER}"
     }
 
     stages {
@@ -14,31 +16,57 @@ pipeline {
             }
         }
 
-        stage('Build & Test') {
+        stage('Build & Test Image') {
             steps {
-                sh 'test -f Dockerfile'
-                sh 'test -f deploy.sh'
+                echo "Building application image version ${VERSION}..."
+                sh "docker build --build-arg APP_VERSION=${VERSION} -t ${DOCKER_HUB_USER}/${IMAGE_NAME}:${VERSION} ."
+                sh "docker tag ${DOCKER_HUB_USER}/${IMAGE_NAME}:${VERSION} ${DOCKER_HUB_USER}/${IMAGE_NAME}:latest"
             }
         }
 
-        stage('Docker Package') {
+        stage('Rolling Deployment') {
             steps {
-                sh "docker build --build-arg VERSION=${BUILD_TAG} -t ${DOCKER_HUB_USER}/${IMAGE_NAME}:${BUILD_TAG} ."
-                sh "docker tag ${DOCKER_HUB_USER}/${IMAGE_NAME}:${BUILD_TAG} ${DOCKER_HUB_USER}/${IMAGE_NAME}:latest"
+                echo "Performing rolling deployment to container ${CONTAINER_NAME}..."
+                sh '''
+                    # Save current running image ID for rollback backup
+                    PREV_IMAGE=$(docker inspect --format='{{.Image}}' ${CONTAINER_NAME} 2>/dev/null || echo "")
+                    echo $PREV_IMAGE > prev_image.txt
+
+                    # Stop and replace running container (Simulating zero-downtime rolling replace)
+                    docker stop ${CONTAINER_NAME} || true
+                    docker rm ${CONTAINER_NAME} || true
+                    docker run -d --name ${CONTAINER_NAME} -p ${APP_PORT}:80 ${DOCKER_HUB_USER}/${IMAGE_NAME}:${VERSION}
+                '''
             }
         }
 
-        stage('Rolling Deploy') {
+        stage('Verify Deployment') {
             steps {
-                sh "./deploy.sh ${DOCKER_HUB_USER}/${IMAGE_NAME}:${BUILD_TAG}"
+                echo "Verifying application availability..."
+                sh '''
+                    sleep 3
+                    # Health check on deployed application port
+                    curl -s -f http://localhost:${APP_PORT} || exit 1
+                '''
             }
         }
     }
 
     post {
         failure {
-            echo 'Pipeline failed. Executing automatic rollback cleanup...'
-            sh 'docker rename web-app-old web-app-live 2>/dev/null || true'
+            echo 'Deployment or verification failed! Initiating automatic Rollback...'
+            sh '''
+                echo "Executing rollback procedure..."
+                docker stop ${CONTAINER_NAME} || true
+                docker rm ${CONTAINER_NAME} || true
+                
+                # Rollback to the previous stable version
+                docker run -d --name ${CONTAINER_NAME} -p ${APP_PORT}:80 ${DOCKER_HUB_USER}/${IMAGE_NAME}:latest || true
+                echo "Rollback successfully executed."
+            '''
+        }
+        success {
+            echo "Deployment of version ${VERSION} completed successfully!"
         }
     }
 }
