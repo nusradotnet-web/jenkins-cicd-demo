@@ -27,7 +27,7 @@ pipeline {
         stage('Rolling Deployment') {
             steps {
                 echo "Performing rolling deployment to container ${CONTAINER_NAME}..."
-                sh '''
+                sh """
                     # Save current running image ID for rollback backup
                     PREV_IMAGE=$(docker inspect --format='{{.Image}}' ${CONTAINER_NAME} 2>/dev/null || echo "")
                     echo $PREV_IMAGE > prev_image.txt
@@ -36,18 +36,18 @@ pipeline {
                     docker stop ${CONTAINER_NAME} || true
                     docker rm ${CONTAINER_NAME} || true
                     docker run -d --name ${CONTAINER_NAME} -p ${APP_PORT}:80 ${DOCKER_HUB_USER}/${IMAGE_NAME}:${VERSION}
-                '''
+                """
             }
         }
 
         stage('Verify Deployment') {
             steps {
                 echo "Verifying application availability..."
-                sh '''
+                sh """
                     sleep 3
                     # Health check on deployed application port
                     curl -s -f http://localhost:${APP_PORT} || exit 1
-                '''
+                """
             }
         }
     }
@@ -55,7 +55,7 @@ pipeline {
     post {
         failure {
             echo 'Deployment or verification failed! Initiating automatic Rollback...'
-            sh '''
+            sh """
                 echo "Executing rollback procedure..."
                 docker stop ${CONTAINER_NAME} || true
                 docker rm ${CONTAINER_NAME} || true
@@ -63,7 +63,7 @@ pipeline {
                 # Rollback to the previous stable version
                 docker run -d --name ${CONTAINER_NAME} -p ${APP_PORT}:80 ${DOCKER_HUB_USER}/${IMAGE_NAME}:latest || true
                 echo "Rollback successfully executed."
-            '''
+            """
         }
         success {
             echo "Deployment of version ${VERSION} completed successfully!"
