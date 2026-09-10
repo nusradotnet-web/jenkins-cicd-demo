@@ -43,7 +43,8 @@ pipeline {
                 echo "Verifying application availability..."
                 sh '''
                     sleep 3
-                    curl -s -f http://localhost:${APP_PORT} || exit 1
+                    # Use host.docker.internal to reach the host port from inside the Jenkins container
+                    curl -s -f http://host.docker.internal:8085 || exit 1
                 '''
             }
         }
