@@ -43,11 +43,11 @@ pipeline {
         stage('Verify Deployment') {
             steps {
                 echo "Verifying application availability..."
-                sh """
+                sh '''
                     sleep 3
                     # Health check on deployed application port
                     curl -s -f http://localhost:${APP_PORT} || exit 1
-                """
+                '''
             }
         }
     }
