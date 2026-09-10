@@ -2,8 +2,7 @@ pipeline {
     agent any
     
     environment {
-        // Change to your actual username in strictly LOWERCASE
-        DOCKER_HUB_USER = 'nusradotnet' 
+        DOCKER_HUB_USER = 'nusradotnet'
         IMAGE_NAME      = 'jenkins-cicd-demo'
         BUILD_TAG       = "${BUILD_NUMBER}"
     }
@@ -11,43 +10,35 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                echo 'Checking out source code...'
                 checkout scm
             }
         }
 
-        stage('Build') {
+        stage('Build & Test') {
             steps {
-                echo 'Compiling application workspace...'
-                sh 'echo "App compilation step passed" > build.log'
-            }
-        }
-
-        stage('Test') {
-            steps {
-                echo 'Executing automated unit tests...'
                 sh 'test -f Dockerfile'
+                sh 'test -f deploy.sh'
             }
         }
 
-        stage('Package & Docker Build') {
+        stage('Docker Package') {
             steps {
-                echo 'Building Docker container image...'
-                sh "docker build -t ${DOCKER_HUB_USER}/${IMAGE_NAME}:${BUILD_TAG} ."
-            }
-        }
-
-        stage('Push Image Tag') {
-            steps {
-                echo 'Tagging image as latest...'
+                sh "docker build --build-arg VERSION=${BUILD_TAG} -t ${DOCKER_HUB_USER}/${IMAGE_NAME}:${BUILD_TAG} ."
                 sh "docker tag ${DOCKER_HUB_USER}/${IMAGE_NAME}:${BUILD_TAG} ${DOCKER_HUB_USER}/${IMAGE_NAME}:latest"
             }
         }
+
+        stage('Rolling Deploy') {
+            steps {
+                sh "./deploy.sh ${DOCKER_HUB_USER}/${IMAGE_NAME}:${BUILD_TAG}"
+            }
+        }
     }
-    
+
     post {
-        always {
-            echo 'Pipeline execution complete.'
+        failure {
+            echo 'Pipeline failed. Executing automatic rollback cleanup...'
+            sh 'docker rename web-app-old web-app-live 2>/dev/null || true'
         }
     }
 }
