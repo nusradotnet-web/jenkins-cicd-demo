@@ -38,16 +38,16 @@ pipeline {
             }
         }
 
-        stage('Verify Deployment') {
-            steps {
-                echo "Verifying application availability..."
-                sh '''
-                    sleep 3
-                    # Use host.docker.internal to reach the host port from inside the Jenkins container
-                    curl -s -f http://host.docker.internal:8085 || exit 1
-                '''
-            }
-        }
+stage('Verify Deployment') {
+    steps {
+        echo "Verifying application availability..."
+        sh '''
+            sleep 3
+            # Intentionally failing by hitting a port that does not exist
+            curl -s -f http://host.docker.internal:9999 || exit 1
+        '''
+    }
+}
     }
 
     post {
